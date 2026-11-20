@@ -1,0 +1,24 @@
+# --- Stage 1: Build ---
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /app
+
+# Dependencies zuerst: dieser Layer bleibt gecacht, solange sich pom.xml nicht ändert.
+COPY .mvn/ .mvn/
+COPY mvnw pom.xml ./
+RUN ./mvnw -B -q dependency:go-offline
+
+COPY src ./src
+RUN ./mvnw -B -q clean package -DskipTests
+
+# --- Stage 2: Runtime ---
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+RUN addgroup -S app && adduser -S app -G app
+COPY --from=build /app/target/*.jar app.jar
+USER app
+
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/actuator/health || exit 1
+ENTRYPOINT ["java", "-jar", "app.jar"]
