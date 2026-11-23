@@ -14,7 +14,7 @@
       "portMappings": [{ "containerPort": 8080, "protocol": "tcp" }],
       "environment": [
         { "name": "SPRING_PROFILES_ACTIVE", "value": "aws" },
-        { "name": "DB_URL", "value": "jdbc:mariadb://${RDS_ENDPOINT}:3306/db_biztrips" },
+        { "name": "DB_URL", "value": "jdbc:mariadb://${RDS_ENDPOINT}:3306/db_biztrips?sslMode=trust" },
         { "name": "DB_USER", "value": "admin" },
         { "name": "APP_STORAGE_S3_BUCKET", "value": "${S3_BUCKET}" },
         { "name": "APP_STORAGE_S3_REGION", "value": "${AWS_REGION}" },
