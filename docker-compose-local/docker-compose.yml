@@ -1,0 +1,65 @@
+# Lokale Entwicklung: Frontend + Backend + MariaDB, ohne AWS-Zugang.
+# Start: siehe README.md in diesem Ordner.
+name: refcard05-local
+
+services:
+  mariadb:
+    image: mariadb:11.8
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-db_biztrips}
+      MARIADB_USER: ${DB_USER:?DB_USER fehlt, siehe .env.example}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD fehlt, siehe .env.example}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD fehlt, siehe .env.example}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      # healthcheck.sh gehört zum offiziellen Image: wartet, bis InnoDB bereit ist
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  backend:
+    build:
+      context: ..
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      # Profil "mariadb": DB über Umgebungsvariablen; Fotos lokal im Volume (kein S3 nötig)
+      SPRING_PROFILES_ACTIVE: mariadb
+      DB_URL: jdbc:mariadb://mariadb:3306/${DB_NAME:-db_biztrips}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      APP_STORAGE_TYPE: local
+      APP_STORAGE_LOCATION: /app/uploads
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:${FRONTEND_PORT:-8081}
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  frontend:
+    build:
+      # Standard: aktueller main-Stand des Frontend-Repos. Eigene Änderungen testen:
+      # FRONTEND_CONTEXT=../../refcard05-fe (Repos nebeneinander geklont)
+      context: ${FRONTEND_CONTEXT:-https://github.com/rtinase/refcard05-fe.git#main}
+      args:
+        # Vite bettet die URL beim Build ein; sie wird vom Browser aufgerufen, daher localhost
+        VITE_API_BASE_URL: http://localhost:${BACKEND_PORT:-8080}/
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8081}:80"
+
+volumes:
+  db-data:
+  uploads:

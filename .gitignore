@@ -38,3 +38,6 @@ build/
 ### Docker Compose local MariaDB data (regenerated on `docker compose up`) ###
 docker/database/
 infra/state.env
+
+### Docker Compose (lokal)
+docker-compose-local/.env
