@@ -18,7 +18,7 @@ secondary concern to the CI/CD lesson — see "Deliberately imperfect code" belo
 ./mvnw clean package -DskipTests                          # build target/*.jar
 ./mvnw spring-boot:run                                    # run with H2 (default profile)
 
-docker compose -f docker/docker-compose.yml up -d         # start MariaDB + phpMyAdmin (localhost:8082)
+(cd docker-compose-local && cp .env.example .env && docker compose up --build)   # frontend + backend + MariaDB
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=mariadb  # run against that MariaDB
 ```
 
@@ -43,8 +43,9 @@ names that don't have templates — dead/broken, not part of the REST API).
 ### Two datasource profiles, one seed data path
 
 - Default profile: embedded H2, ephemeral, reseeded fresh on every start.
-- `mariadb` profile (`application-mariadb.properties`): points at `docker/docker-compose.yml`'s MariaDB
-  (`db_biztrips` / `root` / `bbw123`, same credentials in both places — keep them in sync if you change one).
+- `mariadb` profile (`application-mariadb.properties`): connection comes from `DB_URL`, `DB_USER`, `DB_PASSWORD`
+  (set by `docker-compose-local/.env` locally and by the ECS task definition on AWS); nothing is hardcoded.
+- `aws` profile: `mariadb` plus photo storage in S3 (`APP_STORAGE_S3_BUCKET`).
 
 `BusinessTripsBackendApplication.demoData()` (a `CommandLineRunner`) seeds Employees/Flights/Trips/Meetings.
 It's guarded by `employeeRepository.count() > 0` — restarting against a persistent DB (MariaDB) will **not**

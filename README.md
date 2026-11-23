@@ -1,4 +1,15 @@
-# RefCard 03 – Spring Boot Backend + MariaDB
+# RefCard 05 – Backend (Spring Boot) auf AWS
+
+> **Abgabe RefCard05:** Dokumentation mit Screenshots in [`docs/RefCard05-Ergebnis.md`](docs/RefCard05-Ergebnis.md) ·
+> lokale Entwicklung mit Docker Compose in [`docker-compose-local/`](docker-compose-local/README.md) ·
+> Frontend-Repo: [rtinase/refcard05-fe](https://github.com/rtinase/refcard05-fe)
+
+Das Backend läuft als ECS-Service (Fargate) hinter einem ALB, nutzt eine MariaDB auf Amazon RDS und speichert
+Mitarbeiterfotos in Amazon S3. Die Pipeline (`.github/workflows/ci-cd.yml`) baut, testet und deployt automatisch.
+
+---
+
+# Ausgangsprojekt: Spring Boot Backend + MariaDB
 
 REST-API-Backend für die BusinessTrips-Applikation (Mitarbeitende, Business
 Trips, Flüge, Meetings). Teil der CI/CD-Übungssequenz **RefCard 02–05**
@@ -21,16 +32,27 @@ Trips, Flüge, Meetings). Teil der CI/CD-Übungssequenz **RefCard 02–05**
 
 Startet auf Port 8080 mit einer flüchtigen In-Memory-H2-Datenbank (Daten sind nach jedem Neustart weg, werden aber automatisch neu geseedet).
 
-### Mit MariaDB (persistent, wie in Produktion)
+### Mit MariaDB und Frontend (persistent, wie in Produktion)
+
+Das komplette System (Frontend, Backend, MariaDB) startet mit Docker Compose, ganz ohne AWS:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
-./mvnw spring-boot:run -Dspring-boot.run.profiles=mariadb
+cd docker-compose-local
+cp .env.example .env
+docker compose up --build
 ```
 
-- MariaDB läuft dann auf `localhost:3306` (Datenbank `db_biztrips`, User `root`, Passwort `bbw123`)
-- phpMyAdmin ist unter [http://localhost:8082](http://localhost:8082) erreichbar (gleiche Zugangsdaten)
-- Die Demo-Daten werden nur beim allerersten Start eingefügt — ein Neustart der Applikation dupliziert sie nicht
+Details, Ports und Umgebungsvariablen: [`docker-compose-local/README.md`](docker-compose-local/README.md).
+
+Das Backend allein gegen eine eigene MariaDB starten (Zugangsdaten über Umgebungsvariablen, nichts davon steht im Code):
+
+```bash
+DB_URL=jdbc:mariadb://localhost:3306/db_biztrips DB_USER=... DB_PASSWORD=... \
+  ./mvnw spring-boot:run -Dspring-boot.run.profiles=mariadb
+```
+
+- Die Demo-Daten werden nur beim allerersten Start eingefügt, ein Neustart der Applikation dupliziert sie nicht
+- Profil `aws` = `mariadb` + Fotos in S3 (zusätzlich `APP_STORAGE_S3_BUCKET`)
 
 ### Tests ausführen
 
@@ -48,6 +70,7 @@ Basis-Pfad: `/v1`
 | `GET /v1/employees`, `POST /v1/employees`, `GET /v1/employees/{id}`, `PUT /v1/employees/{id}`, `DELETE /v1/employees/{id}`, `DELETE /v1/employees` | Mitarbeitende |
 | `GET /v1/flights`, `POST /v1/flights`, `GET /v1/flights/{id}`, `PUT /v1/flights/{id}`, `DELETE /v1/flights/{id}`, `DELETE /v1/flights` | Flüge |
 | `GET /v1/meetings`, `POST /v1/meetings`, `GET /v1/meetings/{id}`, `PUT /v1/meetings/{id}`, `DELETE /v1/meetings/{id}`, `DELETE /v1/meetings` | Meetings |
+| `POST /v1/employees/{id}/photo`, `GET /v1/employees/{id}/photo` | Foto-Upload/-Download (lokal oder S3) |
 | `POST /v1/signIn` | Login (Demo-User: `joe` / `1234`) |
 | `GET /actuator/health` | Health-Check (Spring Boot Actuator) — prüft u. a. die Datenbankverbindung |
 
@@ -55,7 +78,9 @@ Basis-Pfad: `/v1`
 
 ```
 src/main/java/ch/bbw/trips/   Applikationscode (Controller, Entities, Repositories, DTOs)
-docker/docker-compose.yml     MariaDB + phpMyAdmin für die lokale Entwicklung
+docker-compose-local/         Frontend + Backend + MariaDB lokal (Docker Compose)
+infra/                        AWS-Skripte: Infrastruktur, ECS-Services, GitHub-Variablen/-Secrets
+task-definition.json          ECS-Task-Definition (Vorlage, Werte aus GitHub-Variablen)
 docs/exercises/               CI/CD-Übungen (EX-01 EC2, EX-02 Docker Hub, EX-03 ECS/RDS)
 docs/reviews/                 Code-Reviews
 docs/future/                  Planungsentscheidungen für RefCard 03–05
