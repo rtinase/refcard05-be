@@ -1,15 +1,18 @@
 package ch.bbw.trips.repo;
 
 import ch.bbw.trips.ex.TriptNotFoundException;
+import ch.bbw.trips.storage.StorageService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +28,9 @@ public class EmployeeController {
 
 	@Autowired
 	private PasswordEncoder passwordEncoder;
+
+	@Autowired
+	private StorageService storageService;
 
 	@PostMapping("/signIn")
 	@ResponseStatus(HttpStatus.OK)
@@ -84,6 +90,28 @@ public class EmployeeController {
 			newItem.setId(id);
 			return employeeRepository.save(newItem);
 		});
+	}
+
+	@PostMapping("/employees/{id}/photo")
+	ResponseEntity<Void> uploadPhoto(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+		Employee employee = employeeRepository.findById(id).orElseThrow(() -> new TriptNotFoundException(id));
+		employee.setProfilePictureFilename(storageService.store(file));
+		employeeRepository.save(employee);
+		return ResponseEntity.ok().build();
+	}
+
+	@GetMapping("/employees/{id}/photo")
+	ResponseEntity<Resource> downloadPhoto(@PathVariable Long id) {
+		Employee employee = employeeRepository.findById(id).orElseThrow(() -> new TriptNotFoundException(id));
+		String filename = employee.getProfilePictureFilename();
+		if (filename == null) {
+			return ResponseEntity.notFound().build();
+		}
+		Resource resource = storageService.load(filename);
+		if (!resource.exists()) {
+			return ResponseEntity.notFound().build();
+		}
+		return ResponseEntity.ok().contentType(storageService.contentTypeOf(filename)).body(resource);
 	}
 
 	@DeleteMapping("/employees/{id}")
