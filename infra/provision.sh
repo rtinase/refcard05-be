@@ -43,19 +43,21 @@ sg() { # name description -> id
   fi
   echo "$id"
 }
-allow() { # sg proto port source(cidr|sg)
+allow() { # sg port source(cidr|sg)
   local src_arg
-  if [[ "$4" == sg-* ]]; then src_arg=(--source-group "$4"); else src_arg=(--cidr "$4"); fi
-  aws ec2 authorize-security-group-ingress --group-id "$1" --protocol tcp --port "$2" "${src_arg[@]}" \
-    >/dev/null 2>&1 || true   # Regel existiert bereits
+  if [[ "$3" == sg-* ]]; then src_arg=(--source-group "$3"); else src_arg=(--cidr "$3"); fi
+  local out
+  if ! out=$(aws ec2 authorize-security-group-ingress --group-id "$1" --protocol tcp --port "$2" "${src_arg[@]}" 2>&1); then
+    [[ "$out" == *InvalidPermission.Duplicate* ]] || { echo "$out" >&2; return 1; }   # Duplikat ist ok
+  fi
 }
 SG_ALB=$(sg "${P}-alb" "RefCard05 ALB (HTTP von aussen)")
 SG_TASKS=$(sg "${P}-tasks" "RefCard05 ECS-Tasks (nur vom ALB)")
 SG_RDS=$(sg "${P}-rds" "RefCard05 RDS (nur von den Backend-Tasks)")
-allow "$SG_ALB" tcp 80 0.0.0.0/0
-allow "$SG_TASKS" tcp 80 "$SG_ALB"
-allow "$SG_TASKS" tcp 8080 "$SG_ALB"
-allow "$SG_RDS" tcp 3306 "$SG_TASKS"
+allow "$SG_ALB" 80 0.0.0.0/0
+allow "$SG_TASKS" 80 "$SG_ALB"
+allow "$SG_TASKS" 8080 "$SG_ALB"
+allow "$SG_RDS" 3306 "$SG_TASKS"
 
 say "DB-Passwort in Secrets Manager (nie im Code)"
 SECRET_NAME="${P}/db-password"
